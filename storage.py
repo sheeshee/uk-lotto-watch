@@ -34,7 +34,7 @@ class GamesRepository(AbstractRepository):
     def get_all(self) -> dict[str, Game]:
         """List all games in the repository."""
         try:
-            with open("games.yml", "r") as file:
+            with open(self.filename, "r") as file:
                 games_data = yaml.safe_load(file)
                 if games_data is None:
                     return {}

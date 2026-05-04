@@ -36,7 +36,7 @@ class Game:
 
 @dataclass
 class Fetcher:
-    WACTHED_GAMES = {
+    WATCHED_GAMES = {
         "lotto",
         "euromillions",
     }
@@ -48,7 +48,7 @@ class Fetcher:
         html_content = self.source.get()
         games_data = parse_lottery_html(html_content)
         games = {}
-        for game in self.WACTHED_GAMES:
+        for game in self.WATCHED_GAMES:
             if game in games_data:
                 game_info = games_data[game]
                 next_draw_date = game_info.get("next-draw-date")
