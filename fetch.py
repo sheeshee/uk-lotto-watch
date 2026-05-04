@@ -4,20 +4,35 @@ import datetime
 
 import requests
 
-from parse import parse_lottery_html
-
 
 class AbstractSource(ABC):
     @abstractmethod
-    def get(self) -> str: ...
+    def get_upcoming(self, game_id: int) -> dict: ...
+
+    @abstractmethod
+    def get_latest_result(self, game_id: int) -> dict: ...
 
 
 class NationalLotterySource(AbstractSource):
-    URL = "https://www.national-lottery.co.uk/games?icid="
+    BASE_URL = "https://api-dfe.national-lottery.co.uk"
+    HEADERS = {"Origin": "https://www.national-lottery.co.uk"}
 
-    def get(self) -> str:
-        response = requests.get(self.URL)
-        return response.text
+    def get_upcoming(self, game_id: int) -> dict:
+        response = requests.get(
+            f"{self.BASE_URL}/draw-game/games/{game_id}",
+            params={"deviceType": "WEB_CLIENT"},
+            headers=self.HEADERS,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def get_latest_result(self, game_id: int) -> dict:
+        response = requests.get(
+            f"{self.BASE_URL}/draw-game/results/{game_id}/latest",
+            headers=self.HEADERS,
+        )
+        response.raise_for_status()
+        return response.json()
 
 
 @dataclass
@@ -36,35 +51,28 @@ class Game:
 
 @dataclass
 class Fetcher:
-    WATCHED_GAMES = {
-        "lotto",
-        "euromillions",
+    GAME_IDS = {
+        "lotto": 1,
+        "euromillions": 33,
     }
 
     source: AbstractSource
 
-    def fetch(self) -> dict[str, Game]:
-        # Simulated fetch logic
-        html_content = self.source.get()
-        games_data = parse_lottery_html(html_content)
-        games = {}
-        for game in self.WATCHED_GAMES:
-            if game in games_data:
-                game_info = games_data[game]
-                next_draw_date = game_info.get("next-draw-date")
-                jackpot = game_info.get("next-draw-jackpot")
-                roll_count = game_info.get("roll-count")
-                if next_draw_date and jackpot:
-                    games[game] = Game(
-                        next_draw_date=next_draw_date,
-                        jackpot=jackpot,
-                        roll_count=roll_count,
-                    )
-                else:
-                    games[game] = None
-            else:
-                games[game] = None
-
+    def fetch(self) -> dict[str, Game | None]:
+        games: dict[str, Game | None] = {}
+        for label, game_id in self.GAME_IDS.items():
+            try:
+                upcoming = self.source.get_upcoming(game_id)
+                latest = self.source.get_latest_result(game_id)
+                games[label] = Game(
+                    next_draw_date=datetime.datetime.fromisoformat(
+                        upcoming["drawDate"].replace("Z", "+00:00")
+                    ).date(),
+                    jackpot=upcoming["topPrize"]["prizeCents"] // 100,
+                    roll_count=latest["prizeBreakdown"]["jackpotRolloverCount"],
+                )
+            except (KeyError, ValueError, TypeError, requests.RequestException):
+                games[label] = None
         return games
 
 
