@@ -56,5 +56,8 @@ State is read from `games.yml` *before* being overwritten with the new fetch, so
   - `GET /draw-game/games/{gameId}?deviceType=WEB_CLIENT` → `drawDate` (ISO 8601 UTC) and `topPrize.prizeCents` (pence — divided by 100 to get £)
   - `GET /draw-game/results/{gameId}/latest` → `prizeBreakdown.jackpotRolloverCount` for `roll_count`
   Both calls send `Origin: https://www.national-lottery.co.uk` and require no auth.
-- `Fetcher.fetch()` returns `Game | None` per label; downstream (`main.py`) treats `None` as "no data" and skips the alert.
+- `Fetcher.fetch()` catches `KeyError`/`ValueError`/`TypeError`/`requests.RequestException` per game and returns `None` for that label. **`main.py` does not handle `None`**: `repo.add()` would fail on `game.as_dict()` and the alert functions dereference `current_game` — so a single failed fetch currently crashes the run. Guard for `None` if changing this path.
+- `Game.next_draw_date` is a `datetime.date`; `GamesRepository` writes it via `yaml.dump` and reads it back with `yaml.safe_load` (which parses ISO dates back into `date`). `jackpot` is whole pounds.
+- `games.yml` and `main.log` are written to the current working directory.
+- Tests use fake `AbstractSource` implementations with canned JSON — no network access needed.
 - `parse.py` is independent of the main pipeline — it still reads `<game>-<property>` meta tags from saved HTML and is exercised by `test_parse.py` against `tests/national_lottery_games.html`.
