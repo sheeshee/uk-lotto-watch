@@ -17,24 +17,25 @@ logging.basicConfig(
 
 
 def alert_for_lotto(last_seen_game, current_game) -> bool:
-    """Check if Lotto must be won."""
+    """Check if Lotto has just become must-be-won (5+ rollovers)."""
+    must_be_won = current_game.roll_count >= 5
     if last_seen_game is None:
+        # First run: nothing to compare against, so alert on the threshold.
         logger.debug("no previous game for lotto")
-        return True
-    trigger_alert = last_seen_game.roll_count < 5 and current_game.roll_count >= 5
+        return must_be_won
+    trigger_alert = last_seen_game.roll_count < 5 and must_be_won
     logger.debug("trigger lotto alert: %s", trigger_alert)
     return trigger_alert
 
 
 def alert_for_euromillions(last_seen_game, current_game) -> bool:
-    """Check if Euromillions jackpot is over £100 million."""
+    """Check if Euromillions jackpot is over £100 million and has changed."""
+    over_threshold = current_game.jackpot >= 100_000_000
     if last_seen_game is None:
+        # First run: nothing to compare against, so alert on the threshold.
         logger.debug("no previous game for euromillions")
-        return True
-    trigger_alert = (
-        current_game.jackpot >= 100_000_000
-        and last_seen_game.jackpot != current_game.jackpot
-    )
+        return over_threshold
+    trigger_alert = over_threshold and last_seen_game.jackpot != current_game.jackpot
     logger.debug("trigger euromillions alert: %s", trigger_alert)
     return trigger_alert
 
