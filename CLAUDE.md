@@ -52,8 +52,9 @@ uv run pytest                # run the test suite
 
 - **Lotto** — alert when `roll_count` crosses from `< 5` to `>= 5` (must-be-won threshold).
 - **EuroMillions** — alert when `jackpot >= £100M` *and* the jackpot value has changed since last seen. This "only notify on change" rule was added deliberately (commit 48b8906) — do not regress to alerting on every run while the threshold is exceeded.
-- **First run** — if a game has no previous entry in `games.yml`, both checks return `True` and alert unconditionally (even if the jackpot is below threshold).
-- Both messages are concatenated into one string with no separator and POSTed as a raw UTF-8 body (not JSON).
+- **First run** — if a game has no previous entry in `games.yml`, only the threshold is checked (Lotto `roll_count >= 5`, EuroMillions `jackpot >= £100M`).
+- Triggered alerts are joined with newlines and POSTed as a raw UTF-8 body (not JSON).
+- Alert rules are covered by `tests/test_main.py`. Importing `main` configures logging to `main.log` in the cwd.
 
 State is read from `games.yml` *before* being overwritten with the new fetch, so the previous-vs-current comparison works on a single run.
 
