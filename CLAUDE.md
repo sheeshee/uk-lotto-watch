@@ -14,13 +14,13 @@ Codename "Splendid Tour" — a UK National Lottery watcher. It calls the Nationa
 - `storage.py` — `GamesRepository` persists games to a YAML file
 - `tests/` — pytest suite (`test_fetch.py`, `test_parse.py`, `test_storage.py`) plus a fixture HTML file
 - `docs/lotto-api.md` — notes on the upstream National Lottery JSON API (the source of truth for endpoint shapes used by `fetch.py`)
+- `install.sh` — installs a user crontab entry that runs `main.py` (see *Scheduling*)
 - `pyproject.toml` / `uv.lock` — project managed with **uv**
 
 ## Dependencies
 
-Python 3.11+. Declared runtime deps in `pyproject.toml`: `requests`, `dotenv`, `beautifulsoup4` (used only by `parse.py`'s HTML CLI). Dev group: `pytest`, `pre-commit`.
+Python 3.11+. Runtime: `requests`, `dotenv`, `pyyaml`, `beautifulsoup4` (used only by `parse.py`'s HTML CLI). Dev group: `pytest`, `pre-commit`. The cron job runs with `--no-dev`, so anything imported by `main.py`/`fetch.py`/`storage.py` must be a runtime dependency.
 
-- `pyyaml` is imported by `storage.py` but **not declared** — it is only installed transitively through `pre-commit` (dev group). A runtime-only install (`uv sync --no-dev`) would break `main.py`; add it with `uv add pyyaml` if touching deps.
 - `ruff` is not a project dependency; it runs only via the pre-commit hooks (`ruff-check`, `ruff-format`), alongside `uv-lock` and standard whitespace/YAML hooks. Run `uv run pre-commit run --all-files` to lint/format.
 
 ## Environment
@@ -38,7 +38,15 @@ uv run python fetch.py       # fetch + print parsed games
 uv run python parse.py -f tests/national_lottery_games.html
 curl … | uv run python parse.py
 uv run pytest                # run the test suite
+./install.sh [--dry-run|--uninstall]   # manage the cron job
 ```
+
+## Scheduling (`install.sh`)
+
+- Adds one crontab line tagged `# uk-lotto-watch`; re-running replaces it, `--uninstall` removes only it. Other crontab entries are preserved.
+- The line `cd`s into the repo (state/log files are cwd-relative) and calls uv by absolute path (cron's `PATH` is minimal), appending output to `cron.log`.
+- `CRON_SCHEDULE` overrides the default `0 9 * * *`. Alerts only fire on change, so more frequent runs are safe.
+- Requires `WEBHOOK` in `.env`. Uses `uv sync --no-dev --inexact` so it doesn't strip dev tools from a shared `.venv`.
 
 ## Alerting Logic (`main.py`)
 
@@ -56,7 +64,7 @@ State is read from `games.yml` *before* being overwritten with the new fetch, so
   - `GET /draw-game/games/{gameId}?deviceType=WEB_CLIENT` → `drawDate` (ISO 8601 UTC) and `topPrize.prizeCents` (pence — divided by 100 to get £)
   - `GET /draw-game/results/{gameId}/latest` → `prizeBreakdown.jackpotRolloverCount` for `roll_count` (`null` for EuroMillions, so `roll_count` is `int | None`)
   Both calls send `Origin: https://www.national-lottery.co.uk` and require no auth.
-- `Fetcher.fetch()` catches `KeyError`/`ValueError`/`TypeError`/`requests.RequestException` per game and returns `None` for that label (also for every label if slug resolution fails, or for a slug missing upstream). **`main.py` does not handle `None`**: `repo.add()` would fail on `game.as_dict()` and the alert functions dereference `current_game` — so a single failed fetch currently crashes the run. Guard for `None` if changing this path.
+- `Fetcher.fetch()` catches `KeyError`/`ValueError`/`TypeError`/`requests.RequestException` per game and returns `None` for that label (also for every label if slug resolution fails, or for a slug missing upstream). `main.py` logs and skips `None` games: they are neither stored (so `games.yml` keeps the last good state for the next comparison) nor alerted on.
 - `Game.next_draw_date` is a `datetime.date`; `GamesRepository` writes it via `yaml.dump` and reads it back with `yaml.safe_load` (which parses ISO dates back into `date`). `jackpot` is whole pounds.
 - `games.yml` and `main.log` are written to the current working directory.
 - Tests use fake `AbstractSource` implementations with canned JSON — no network access needed.
