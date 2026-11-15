@@ -22,12 +22,15 @@ Account, payment, and game-play endpoints require session cookies (`withCredenti
 
 | Game | gameId | slug |
 |------|--------|------|
-| Lotto | 1 | `LOTTO` |
-| Lotto HotPicks | 2 | `LOTTO_HOTPICKS` |
+| Lotto | 6 | `LOTTO` |
+| Lotto HotPicks | 7 | `LOTTO_HOTPICKS` |
 | Set For Life | 3 | `SET_FOR_LIFE` |
 | Thunderball | 4 | `THUNDERBALL` |
 | EuroMillions HotPicks | 5 | `EUROMILLIONS_HOTPICKS` |
+| Powerball | 11 | `POWERBALL` |
 | EuroMillions | 33 | `EUROMILLIONS` |
+
+> **Active IDs change.** As of 2026-11-15, Lotto moved from 1 → 6 and Lotto HotPicks from 2 → 7; requests for the old IDs on `/draw-game/games/{gameId}` return `404 RESOURCE_NOT_FOUND`. Resolve the current ID from `GET /draw-game/games/slugs` (`activeGameId`) rather than hardcoding it.
 
 ---
 
@@ -490,7 +493,9 @@ curl "https://api-dfe.national-lottery.co.uk/draw-game/results/1/download" -o lo
 
 - **Prices:** All `prizeCents` values are in **pence** (divide by 100 for £). EuroMillions jackpots represent the UK share only.
 - **Draw dates in results** include time (UTC) — the actual draw time. `draw-dates` endpoint returns dates without time.
-- **Game 6 / Game 7** are legacy/inactive IDs for Lotto and Lotto HotPicks respectively.
+- **Game 1 / Game 2** are now the legacy IDs for Lotto and Lotto HotPicks (previously 6 / 7 were legacy). `/draw-game/results/1/latest` still answers but returns `gameId: 6`.
+- **EuroMillions** `prizeBreakdown.jackpotRolloverCount` is `null` (observed 2026-11-15); Lotto populates it.
+- `GET /draw-game/games/{gameId}` also returns `rolloverCount`, `nextDrawNo` and `upcomingDrawDates` (not shown in the example above).
 - **EuroMillions (gameId 33)** includes `ukWinnersCount` and `allWinnersCount` separately (multi-country draw).
 - **Set For Life (gameId 3)** uses non-cash prizes (`nonCashPrize: "£10,000 every month for 30 years"`).
 - The API uses **AWS WAF** (`422a7e6a3d77.edge.sdk.awswaf.com`) and **CloudFront** CDN.
