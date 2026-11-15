@@ -51,12 +51,12 @@ State is read from `games.yml` *before* being overwritten with the new fetch, so
 
 ## Architecture Notes
 
-- `Fetcher.GAME_IDS` maps watched-game labels to upstream `gameId`s (e.g. `lotto: 1`, `euromillions: 33`). Add a label here to extend coverage.
-- `NationalLotterySource` calls two endpoints per game (see `docs/lotto-api.md`):
+- `Fetcher.GAME_SLUGS` maps watched-game labels to upstream `gameSlug`s (`lotto: LOTTO`, `euromillions: EUROMILLIONS`). Add a label here to extend coverage. Do **not** hardcode `gameId`s — they change upstream (Lotto moved 1 → 6 in 2026).
+- `NationalLotterySource` first calls `GET /draw-game/games/slugs?deviceType=WEB_CLIENT` once to resolve each slug's `activeGameId`, then two endpoints per game (see `docs/lotto-api.md`):
   - `GET /draw-game/games/{gameId}?deviceType=WEB_CLIENT` → `drawDate` (ISO 8601 UTC) and `topPrize.prizeCents` (pence — divided by 100 to get £)
-  - `GET /draw-game/results/{gameId}/latest` → `prizeBreakdown.jackpotRolloverCount` for `roll_count`
+  - `GET /draw-game/results/{gameId}/latest` → `prizeBreakdown.jackpotRolloverCount` for `roll_count` (`null` for EuroMillions, so `roll_count` is `int | None`)
   Both calls send `Origin: https://www.national-lottery.co.uk` and require no auth.
-- `Fetcher.fetch()` catches `KeyError`/`ValueError`/`TypeError`/`requests.RequestException` per game and returns `None` for that label. **`main.py` does not handle `None`**: `repo.add()` would fail on `game.as_dict()` and the alert functions dereference `current_game` — so a single failed fetch currently crashes the run. Guard for `None` if changing this path.
+- `Fetcher.fetch()` catches `KeyError`/`ValueError`/`TypeError`/`requests.RequestException` per game and returns `None` for that label (also for every label if slug resolution fails, or for a slug missing upstream). **`main.py` does not handle `None`**: `repo.add()` would fail on `game.as_dict()` and the alert functions dereference `current_game` — so a single failed fetch currently crashes the run. Guard for `None` if changing this path.
 - `Game.next_draw_date` is a `datetime.date`; `GamesRepository` writes it via `yaml.dump` and reads it back with `yaml.safe_load` (which parses ISO dates back into `date`). `jackpot` is whole pounds.
 - `games.yml` and `main.log` are written to the current working directory.
 - Tests use fake `AbstractSource` implementations with canned JSON — no network access needed.
