@@ -59,20 +59,25 @@ if __name__ == "__main__":
             continue
         repo.add(label, game)
 
-    message = ""
+    alerts = []
 
     # National Lottery
     lotto = fetched_games.get("lotto")
     if lotto is not None and alert_for_lotto(previous_games.get("lotto"), lotto):
-        message += f"Lotto must be won! Next draw: {lotto.next_draw_date}, Jackpot: £{lotto.jackpot // 1_000_000}M"
+        alerts.append(
+            f"Lotto must be won! Next draw: {lotto.next_draw_date}, Jackpot: £{lotto.jackpot // 1_000_000}M"
+        )
 
     # Euromillions.
     euromillions = fetched_games.get("euromillions")
     if euromillions is not None and alert_for_euromillions(
         previous_games.get("euromillions"), euromillions
     ):
-        message += f"Euromillions jackpot is £{euromillions.jackpot // 1_000_000}M! Next draw: {euromillions.next_draw_date}"
+        alerts.append(
+            f"Euromillions jackpot is £{euromillions.jackpot // 1_000_000}M! Next draw: {euromillions.next_draw_date}"
+        )
 
+    message = "\n".join(alerts)
     if message:
         logger.debug("posting message: %s", message)
         requests.post(os.environ["WEBHOOK"], data=message.encode(encoding="utf-8"))
