@@ -7,6 +7,9 @@ import requests
 
 class AbstractSource(ABC):
     @abstractmethod
+    def get_game_slugs(self) -> dict: ...
+
+    @abstractmethod
     def get_upcoming(self, game_id: int) -> dict: ...
 
     @abstractmethod
@@ -16,6 +19,15 @@ class AbstractSource(ABC):
 class NationalLotterySource(AbstractSource):
     BASE_URL = "https://api-dfe.national-lottery.co.uk"
     HEADERS = {"Origin": "https://www.national-lottery.co.uk"}
+
+    def get_game_slugs(self) -> dict:
+        response = requests.get(
+            f"{self.BASE_URL}/draw-game/games/slugs",
+            params={"deviceType": "WEB_CLIENT"},
+            headers=self.HEADERS,
+        )
+        response.raise_for_status()
+        return response.json()
 
     def get_upcoming(self, game_id: int) -> dict:
         response = requests.get(
@@ -39,7 +51,7 @@ class NationalLotterySource(AbstractSource):
 class Game:
     next_draw_date: datetime.date
     jackpot: int
-    roll_count: int
+    roll_count: int | None  # EuroMillions results report no rollover count
 
     def as_dict(self) -> dict:
         return {
@@ -51,16 +63,31 @@ class Game:
 
 @dataclass
 class Fetcher:
-    GAME_IDS = {
-        "lotto": 1,
-        "euromillions": 33,
+    # Watched-game label -> upstream gameSlug. Active gameIds change over
+    # time (e.g. Lotto moved from 1 to 6), so they are resolved per fetch.
+    GAME_SLUGS = {
+        "lotto": "LOTTO",
+        "euromillions": "EUROMILLIONS",
     }
 
     source: AbstractSource
 
+    def resolve_game_ids(self) -> dict[str, int]:
+        slugs = self.source.get_game_slugs()["gameSlugs"]
+        active = {entry["gameSlug"]: entry["activeGameId"] for entry in slugs}
+        return {
+            label: active[slug]
+            for label, slug in self.GAME_SLUGS.items()
+            if slug in active
+        }
+
     def fetch(self) -> dict[str, Game | None]:
-        games: dict[str, Game | None] = {}
-        for label, game_id in self.GAME_IDS.items():
+        games: dict[str, Game | None] = {label: None for label in self.GAME_SLUGS}
+        try:
+            game_ids = self.resolve_game_ids()
+        except (KeyError, TypeError, requests.RequestException):
+            return games
+        for label, game_id in game_ids.items():
             try:
                 upcoming = self.source.get_upcoming(game_id)
                 latest = self.source.get_latest_result(game_id)
