@@ -51,21 +51,26 @@ if __name__ == "__main__":
 
     previous_games = repo.get_all()
     for label, game in fetched_games.items():
+        if game is None:
+            # Keep the last good state so the next successful fetch still
+            # compares against it.
+            logger.warning("no data fetched for %s; skipping", label)
+            continue
         repo.add(label, game)
 
     message = ""
 
     # National Lottery
-    if alert_for_lotto(previous_games.get("lotto"), fetched_games["lotto"]):
-        game = fetched_games["lotto"]
-        message += f"Lotto must be won! Next draw: {game.next_draw_date}, Jackpot: £{game.jackpot // 1_000_000}M"
+    lotto = fetched_games.get("lotto")
+    if lotto is not None and alert_for_lotto(previous_games.get("lotto"), lotto):
+        message += f"Lotto must be won! Next draw: {lotto.next_draw_date}, Jackpot: £{lotto.jackpot // 1_000_000}M"
 
     # Euromillions.
-    if alert_for_euromillions(
-        previous_games.get("euromillions"), fetched_games["euromillions"]
+    euromillions = fetched_games.get("euromillions")
+    if euromillions is not None and alert_for_euromillions(
+        previous_games.get("euromillions"), euromillions
     ):
-        game = fetched_games["euromillions"]
-        message += f"Euromillions jackpot is £{game.jackpot // 1_000_000}M! Next draw: {game.next_draw_date}"
+        message += f"Euromillions jackpot is £{euromillions.jackpot // 1_000_000}M! Next draw: {euromillions.next_draw_date}"
 
     if message:
         logger.debug("posting message: %s", message)
