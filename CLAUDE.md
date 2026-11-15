@@ -18,7 +18,10 @@ Codename "Splendid Tour" — a UK National Lottery watcher. It calls the Nationa
 
 ## Dependencies
 
-Python 3.11+. Runtime: `requests`, `dotenv`, `pyyaml`, `beautifulsoup4` (used only by `parse.py`'s HTML CLI). Dev: `pytest`, `pre-commit`, `ruff` (configured via `.pre-commit-config.yaml`).
+Python 3.11+. Declared runtime deps in `pyproject.toml`: `requests`, `dotenv`, `beautifulsoup4` (used only by `parse.py`'s HTML CLI). Dev group: `pytest`, `pre-commit`.
+
+- `pyyaml` is imported by `storage.py` but **not declared** — it is only installed transitively through `pre-commit` (dev group). A runtime-only install (`uv sync --no-dev`) would break `main.py`; add it with `uv add pyyaml` if touching deps.
+- `ruff` is not a project dependency; it runs only via the pre-commit hooks (`ruff-check`, `ruff-format`), alongside `uv-lock` and standard whitespace/YAML hooks. Run `uv run pre-commit run --all-files` to lint/format.
 
 ## Environment
 
